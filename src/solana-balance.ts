@@ -98,6 +98,20 @@ export class SolanaBalanceMonitor {
     const owner = solAddress(this.walletAddress);
     const mint = solAddress(SOLANA_USDC_MINT);
 
+    // The public Solana RPC frequently returns empty token account lists even
+    // for funded wallets. Retry once on empty before accepting $0 as truth.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await this.fetchBalanceOnce(owner, mint);
+      if (result > 0n || attempt === 1) return result;
+      await new Promise((r) => setTimeout(r, 1_000));
+    }
+    return 0n;
+  }
+
+  private async fetchBalanceOnce(
+    owner: ReturnType<typeof solAddress>,
+    mint: ReturnType<typeof solAddress>,
+  ): Promise<bigint> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), BALANCE_TIMEOUT_MS);
 
