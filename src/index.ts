@@ -287,14 +287,8 @@ function injectModelsConfig(logger: { info: (msg: string) => void }): void {
     needsWrite = true;
   }
   const allowlist = defaults.models as Record<string, unknown>;
-  // Clean out old blockrun entries that aren't in TOP_MODELS (from previous versions)
-  const topSet = new Set(TOP_MODELS.map((id) => `blockrun/${id}`));
-  for (const key of Object.keys(allowlist)) {
-    if (key.startsWith("blockrun/") && !topSet.has(key)) {
-      delete allowlist[key];
-      needsWrite = true;
-    }
-  }
+  // Additive-only: add TOP_MODELS entries if missing, never delete user-defined entries.
+  // Preserves any blockrun/* IDs the user has manually added outside this curated list.
   let addedCount = 0;
   for (const id of TOP_MODELS) {
     const key = `blockrun/${id}`;

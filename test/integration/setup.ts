@@ -2,22 +2,31 @@
  * Integration test setup — programmatically starts ClawRouter proxy.
  *
  * Shared across all integration test files via beforeAll/afterAll.
- * Starts the proxy on port 8402, waits for /health to return 200,
- * and caches the handle so multiple test files share one instance.
+ * Starts the proxy on a worker-scoped port, waits for /health to return 200,
+ * and caches the handle so test files in the same worker share one instance.
  */
 
 import { startProxy } from "../../src/proxy.js";
 import { resolveOrGenerateWalletKey } from "../../src/auth.js";
 import type { ProxyHandle } from "../../src/proxy.js";
 
-const TEST_PORT = 8402;
 const HEALTH_POLL_INTERVAL_MS = 200;
 const HEALTH_TIMEOUT_MS = 5_000;
 
 let proxyHandle: ProxyHandle | undefined;
 
+function getTestPort(): number {
+  // Keep worker 1 on the historical default (8402), then offset others.
+  const workerRaw = process.env.VITEST_POOL_ID ?? process.env.VITEST_WORKER_ID ?? "1";
+  const workerId = Number.parseInt(workerRaw, 10);
+  if (Number.isInteger(workerId) && workerId >= 1) {
+    return 8401 + workerId;
+  }
+  return 8402;
+}
+
 /**
- * Start the test proxy on port 8402.
+ * Start the test proxy on a worker-scoped port.
  * Polls /health until it returns 200 (up to 5s), then returns the handle.
  * Reuses an existing handle if already started.
  */
@@ -25,10 +34,11 @@ export async function startTestProxy(): Promise<ProxyHandle> {
   if (proxyHandle) return proxyHandle;
 
   const wallet = await resolveOrGenerateWalletKey();
+  const testPort = getTestPort();
 
   proxyHandle = await startProxy({
     wallet,
-    port: TEST_PORT,
+    port: testPort,
     skipBalanceCheck: true,
   });
 
