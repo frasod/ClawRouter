@@ -1,14 +1,18 @@
-# Image Generation
+# Image Generation & Editing
 
-Generate images via BlockRun's image API with x402 micropayments — no API keys, pay per image.
+Generate and edit images via BlockRun's image API with x402 micropayments — no API keys, pay per image.
 
 ## Table of Contents
 
 - [Quick Start](#quick-start)
 - [Models & Pricing](#models--pricing)
 - [API Reference](#api-reference)
+  - [POST /v1/images/generations](#post-v1imagesgenerations)
+  - [POST /v1/images/image2image](#post-v1imagesimage2image)
 - [Code Examples](#code-examples)
-- [In-Chat Command](#in-chat-command)
+  - [Image Generation](#image-generation-examples)
+  - [Image Editing (img2img)](#image-editing-examples)
+- [In-Chat Commands](#in-chat-commands)
 - [Notes](#notes)
 
 ---
@@ -86,9 +90,37 @@ OpenAI-compatible endpoint. Route via ClawRouter proxy (`http://localhost:8402`)
 }
 ```
 
+### `POST /v1/images/image2image`
+
+Edit an existing image using AI. Route via ClawRouter proxy (`http://localhost:8402`) for automatic x402 payment handling.
+
+**Request body:**
+
+| Field   | Type     | Required | Description                                                    |
+| ------- | -------- | -------- | -------------------------------------------------------------- |
+| `model` | `string` | Yes      | Model ID (currently `openai/gpt-image-1`)                      |
+| `prompt`| `string` | Yes      | Text description of the edit to apply                          |
+| `image` | `string` | Yes      | Source image as base64 data URI (`data:image/png;base64,...`)   |
+| `mask`  | `string` | No       | Mask image as base64 data URI (white = area to edit)           |
+| `size`  | `string` | No       | Output dimensions, e.g. `"1024x1024"` (default)               |
+
+**Response:**
+
+```typescript
+{
+  created: number;          // Unix timestamp
+  data: Array<{
+    url: string;            // Locally cached image URL (http://localhost:8402/images/...)
+    revised_prompt?: string; // Model's rewritten prompt
+  }>;
+}
+```
+
 ---
 
 ## Code Examples
+
+### Image Generation Examples {#image-generation-examples}
 
 ### curl
 
@@ -203,11 +235,88 @@ console.log(data[0].url);
 await proxy.close();
 ```
 
+### Image Editing Examples {#image-editing-examples}
+
+### curl
+
+```bash
+# Edit an image (gpt-image-1, $0.02)
+curl -X POST http://localhost:8402/v1/images/image2image \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "openai/gpt-image-1",
+    "prompt": "add sunglasses to the person",
+    "image": "data:image/png;base64,iVBOR...",
+    "size": "1024x1024"
+  }'
+
+# With a mask (inpainting — white = area to edit)
+curl -X POST http://localhost:8402/v1/images/image2image \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "openai/gpt-image-1",
+    "prompt": "replace the background with a sunset beach",
+    "image": "data:image/png;base64,iVBOR...",
+    "mask": "data:image/png;base64,iVBOR..."
+  }'
+```
+
+### TypeScript / Node.js
+
+```typescript
+import { readFileSync } from "fs";
+
+const imageBase64 = readFileSync("./photo.png").toString("base64");
+
+const response = await fetch("http://localhost:8402/v1/images/image2image", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    model: "openai/gpt-image-1",
+    prompt: "change the background to a starry sky",
+    image: `data:image/png;base64,${imageBase64}`,
+    size: "1024x1024",
+  }),
+});
+
+const result = (await response.json()) as {
+  created: number;
+  data: Array<{ url: string; revised_prompt?: string }>;
+};
+
+console.log(result.data[0].url); // http://localhost:8402/images/xxx.png
+```
+
+### Python
+
+```python
+import base64
+import requests
+
+with open("photo.png", "rb") as f:
+    image_b64 = base64.b64encode(f.read()).decode()
+
+response = requests.post(
+    "http://localhost:8402/v1/images/image2image",
+    json={
+        "model": "openai/gpt-image-1",
+        "prompt": "add a hat to the person",
+        "image": f"data:image/png;base64,{image_b64}",
+        "size": "1024x1024",
+    },
+)
+
+result = response.json()
+print(result["data"][0]["url"])
+```
+
 ---
 
-## In-Chat Command
+## In-Chat Commands
 
-When using ClawRouter with OpenClaw, generate images directly from any conversation:
+When using ClawRouter with OpenClaw, generate and edit images directly from any conversation:
+
+### `/imagegen` — Generate images
 
 ```
 /imagegen a dog dancing on the beach
@@ -215,28 +324,42 @@ When using ClawRouter with OpenClaw, generate images directly from any conversat
 /imagegen --model banana-pro --size 2048x2048 mountain landscape
 ```
 
-**Flags:**
+| Flag      | Default       | Description           |
+| --------- | ------------- | --------------------- |
+| `--model` | `nano-banana` | Model shorthand or ID |
+| `--size`  | `1024x1024`   | Image dimensions      |
 
-| Flag      | Default          | Description              |
-| --------- | ---------------- | ------------------------ |
-| `--model` | `nano-banana`    | Model shorthand or ID    |
-| `--size`  | `1024x1024`      | Image dimensions         |
+### `/img2img` — Edit images
 
-**Model shorthands** (for `--model`):
+```
+/img2img --image ~/photo.png change the background to a starry sky
+/img2img --image ./cat.jpg --mask ./mask.png remove the background
+/img2img --image /tmp/portrait.png --size 1536x1024 add a hat
+```
 
-| Shorthand    | Full ID                      |
-| ------------ | ---------------------------- |
-| `nano-banana`| `google/nano-banana`         |
-| `banana-pro` | `google/nano-banana-pro`     |
-| `dall-e-3`   | `openai/dall-e-3`            |
-| `gpt-image`  | `openai/gpt-image-1`         |
-| `flux`       | `black-forest/flux-1.1-pro`  |
+| Flag      | Default        | Description                           |
+| --------- | -------------- | ------------------------------------- |
+| `--image` | _(required)_   | Local image file path (supports `~/`) |
+| `--mask`  | _(none)_       | Mask image (white = area to edit)     |
+| `--model` | `gpt-image-1`  | Model to use                          |
+| `--size`  | `1024x1024`    | Output size                           |
+
+### Model shorthands
+
+| Shorthand     | Full ID                     |
+| ------------- | --------------------------- |
+| `nano-banana` | `google/nano-banana`        |
+| `banana-pro`  | `google/nano-banana-pro`    |
+| `dall-e-3`    | `openai/dall-e-3`           |
+| `gpt-image`   | `openai/gpt-image-1`       |
+| `flux`        | `black-forest/flux-1.1-pro` |
 
 ---
 
 ## Notes
 
-- **Hosted URLs** — All images are returned as publicly accessible URLs (catbox.moe). Google models return base64 data URIs which ClawRouter automatically uploads before responding.
-- **Payment** — Each image costs the listed price in USDC, deducted from your wallet via x402. Make sure your wallet is funded before generating.
-- **No DALL-E content policy bypass** — DALL-E 3 still applies OpenAI's content policy. Use `flux` or `nano-banana` for more flexibility.
+- **Local image caching** — All images (generated and edited) are cached locally at `~/.openclaw/blockrun/images/` and served via `http://localhost:8402/images/`. Both base64 data URIs and HTTP URLs from upstream are downloaded and replaced with localhost URLs.
+- **Payment** — Each image costs the listed price in USDC, deducted from your wallet via x402. Make sure your wallet is funded before generating or editing.
+- **No DALL-E content policy bypass** — DALL-E 3 and GPT Image 1 still apply OpenAI's content policy. Use `flux` or `nano-banana` for more flexibility with generation.
 - **Size limits** — Requesting a size larger than the model's max will return an error. Check the table above before setting `--size`.
+- **Image editing** — The `/v1/images/image2image` endpoint currently supports `openai/gpt-image-1`. The source image must be sent as a base64 data URI in the `image` field. The `/img2img` chat command handles file reading and base64 conversion automatically.

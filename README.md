@@ -48,7 +48,7 @@ One wallet, 41+ models, zero API keys.
 | [vs OpenRouter](#-vs-openrouter)          | Why ClawRouter wins             |
 | [Support](#-support)                      | Telegram, X, founders           |
 
-**API Docs:** [Image Generation](docs/image-generation.md) · [Architecture](docs/architecture.md) · [Configuration](docs/configuration.md)
+**API Docs:** [Image Generation & Editing](docs/image-generation.md) · [Architecture](docs/architecture.md) · [Configuration](docs/configuration.md)
 
 ---
 
@@ -120,6 +120,8 @@ Edit existing images with `/img2img` — pass a local file and describe what to 
 | `--size <WxH>`    | No       | Output size (default: `1024x1024`)    |
 
 Supported model: `gpt-image-1` (OpenAI GPT Image 1, $0.02/image). ClawRouter reads the local file, converts it to base64, and sends it to BlockRun's `/v1/images/image2image` endpoint with automatic x402 payment.
+
+**API endpoint:** `POST http://localhost:8402/v1/images/image2image` is also available for programmatic use — see [Image Generation docs](docs/image-generation.md#post-v1imagesimage2image) for API reference and code examples.
 
 ---
 
@@ -349,17 +351,17 @@ npm test
 
 ## 📚 More Resources
 
-| Resource                                     | Description              |
-| -------------------------------------------- | ------------------------ |
-| [Documentation](https://blockrun.ai/docs)    | Full docs                |
-| [Model Pricing](https://blockrun.ai/models)  | All models & prices      |
-| [Image Generation](docs/image-generation.md) | API examples, 5 models   |
-| [Routing Profiles](docs/routing-profiles.md) | ECO/AUTO/PREMIUM details |
-| [Architecture](docs/architecture.md)         | Technical deep dive      |
-| [Configuration](docs/configuration.md)       | Environment variables    |
-| [vs OpenRouter](docs/vs-openrouter.md)       | Why ClawRouter wins      |
-| [Features](docs/features.md)                 | All features             |
-| [Troubleshooting](docs/troubleshooting.md)   | Common issues            |
+| Resource                                               | Description              |
+| ------------------------------------------------------ | ------------------------ |
+| [Documentation](https://blockrun.ai/docs)              | Full docs                |
+| [Model Pricing](https://blockrun.ai/models)            | All models & prices      |
+| [Image Generation & Editing](docs/image-generation.md) | API examples, 5 models   |
+| [Routing Profiles](docs/routing-profiles.md)           | ECO/AUTO/PREMIUM details |
+| [Architecture](docs/architecture.md)                   | Technical deep dive      |
+| [Configuration](docs/configuration.md)                 | Environment variables    |
+| [vs OpenRouter](docs/vs-openrouter.md)                 | Why ClawRouter wins      |
+| [Features](docs/features.md)                           | All features             |
+| [Troubleshooting](docs/troubleshooting.md)             | Common issues            |
 
 ---
 

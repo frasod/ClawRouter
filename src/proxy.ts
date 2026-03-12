@@ -1652,6 +1652,85 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
       return;
     }
 
+    // --- Handle /v1/images/image2image: proxy with x402 payment + save images locally ---
+    if (req.url === "/v1/images/image2image" && req.method === "POST") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      const reqBody = Buffer.concat(chunks);
+      try {
+        const upstream = await payFetch(`${apiBase}/v1/images/image2image`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "user-agent": USER_AGENT },
+          body: reqBody,
+        });
+        const text = await upstream.text();
+        if (!upstream.ok) {
+          res.writeHead(upstream.status, { "Content-Type": "application/json" });
+          res.end(text);
+          return;
+        }
+        let result: { created?: number; data?: Array<{ url?: string; revised_prompt?: string }> };
+        try {
+          result = JSON.parse(text);
+        } catch {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(text);
+          return;
+        }
+        // Save images to ~/.openclaw/blockrun/images/ and replace with localhost URLs
+        // Handles both base64 data URIs (Google) and HTTP URLs (DALL-E 3)
+        if (result.data?.length) {
+          await mkdir(IMAGE_DIR, { recursive: true });
+          const port = (server.address() as AddressInfo | null)?.port ?? 8402;
+          for (const img of result.data) {
+            const dataUriMatch = img.url?.match(/^data:(image\/\w+);base64,(.+)$/);
+            if (dataUriMatch) {
+              const [, mimeType, b64] = dataUriMatch;
+              const ext = mimeType === "image/jpeg" ? "jpg" : (mimeType!.split("/")[1] ?? "png");
+              const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+              await writeFile(join(IMAGE_DIR, filename), Buffer.from(b64!, "base64"));
+              img.url = `http://localhost:${port}/images/${filename}`;
+              console.log(`[ClawRouter] Image saved → ${img.url}`);
+            } else if (img.url?.startsWith("https://") || img.url?.startsWith("http://")) {
+              try {
+                const imgResp = await fetch(img.url);
+                if (imgResp.ok) {
+                  const contentType = imgResp.headers.get("content-type") ?? "image/png";
+                  const ext =
+                    contentType.includes("jpeg") || contentType.includes("jpg")
+                      ? "jpg"
+                      : contentType.includes("webp")
+                        ? "webp"
+                        : "png";
+                  const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
+                  const buf = Buffer.from(await imgResp.arrayBuffer());
+                  await writeFile(join(IMAGE_DIR, filename), buf);
+                  img.url = `http://localhost:${port}/images/${filename}`;
+                  console.log(`[ClawRouter] Image downloaded & saved → ${img.url}`);
+                }
+              } catch (downloadErr) {
+                console.warn(
+                  `[ClawRouter] Failed to download image, using original URL: ${downloadErr instanceof Error ? downloadErr.message : String(downloadErr)}`,
+                );
+              }
+            }
+          }
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[ClawRouter] Image editing error: ${msg}`);
+        if (!res.headersSent) {
+          res.writeHead(502, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Image editing failed", details: msg }));
+        }
+      }
+      return;
+    }
+
     // --- Handle partner API paths (/v1/x/*, /v1/partner/*) ---
     if (req.url?.match(/^\/v1\/(?:x|partner)\//)) {
       try {
