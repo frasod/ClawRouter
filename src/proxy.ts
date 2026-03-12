@@ -1653,12 +1653,50 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
     }
 
     // --- Handle /v1/images/image2image: proxy with x402 payment + save images locally ---
+    // Accepts image as: data URI, local file path, ~/path, or HTTP(S) URL
     if (req.url === "/v1/images/image2image" && req.method === "POST") {
       const chunks: Buffer[] = [];
       for await (const chunk of req) {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       }
-      const reqBody = Buffer.concat(chunks);
+      const rawBody = Buffer.concat(chunks);
+
+      // Resolve image/mask fields: file paths and URLs → data URIs
+      let reqBody: string;
+      try {
+        const parsed = JSON.parse(rawBody.toString());
+        for (const field of ["image", "mask"] as const) {
+          const val = parsed[field];
+          if (typeof val !== "string" || !val) continue;
+          if (val.startsWith("data:")) {
+            // Already a data URI — pass through
+          } else if (val.startsWith("https://") || val.startsWith("http://")) {
+            // Download URL → data URI
+            const imgResp = await fetch(val);
+            if (!imgResp.ok)
+              throw new Error(`Failed to download ${field} from ${val}: HTTP ${imgResp.status}`);
+            const contentType = imgResp.headers.get("content-type") ?? "image/png";
+            const buf = Buffer.from(await imgResp.arrayBuffer());
+            parsed[field] = `data:${contentType};base64,${buf.toString("base64")}`;
+            console.log(
+              `[ClawRouter] img2img: downloaded ${field} URL → data URI (${buf.length} bytes)`,
+            );
+          } else {
+            // Local file path → data URI
+            parsed[field] = readImageFileAsDataUri(val);
+            console.log(`[ClawRouter] img2img: read ${field} file → data URI`);
+          }
+        }
+        // Default model if not specified
+        if (!parsed.model) parsed.model = "openai/gpt-image-1";
+        reqBody = JSON.stringify(parsed);
+      } catch (parseErr) {
+        const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid request", details: msg }));
+        return;
+      }
+
       try {
         const upstream = await payFetch(`${apiBase}/v1/images/image2image`, {
           method: "POST",

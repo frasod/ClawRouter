@@ -119,9 +119,17 @@ Edit existing images with `/img2img` — pass a local file and describe what to 
 | `--model <model>` | No       | Model to use (default: `gpt-image-1`) |
 | `--size <WxH>`    | No       | Output size (default: `1024x1024`)    |
 
-Supported model: `gpt-image-1` (OpenAI GPT Image 1, $0.02/image). ClawRouter reads the local file, converts it to base64, and sends it to BlockRun's `/v1/images/image2image` endpoint with automatic x402 payment.
+Supported model: `gpt-image-1` (OpenAI GPT Image 1, $0.02/image).
 
-**API endpoint:** `POST http://localhost:8402/v1/images/image2image` is also available for programmatic use — see [Image Generation docs](docs/image-generation.md#post-v1imagesimage2image) for API reference and code examples.
+**API endpoint:** `POST http://localhost:8402/v1/images/image2image` — accepts local file paths, URLs, or base64 data URIs:
+
+```bash
+curl -X POST http://localhost:8402/v1/images/image2image \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"add sunglasses","image":"~/photo.png"}'
+```
+
+See [Image Generation & Editing docs](docs/image-generation.md#post-v1imagesimage2image) for full API reference and code examples.
 
 ---
 

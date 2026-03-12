@@ -96,13 +96,24 @@ Edit an existing image using AI. Route via ClawRouter proxy (`http://localhost:8
 
 **Request body:**
 
-| Field   | Type     | Required | Description                                                    |
-| ------- | -------- | -------- | -------------------------------------------------------------- |
-| `model` | `string` | Yes      | Model ID (currently `openai/gpt-image-1`)                      |
-| `prompt`| `string` | Yes      | Text description of the edit to apply                          |
-| `image` | `string` | Yes      | Source image as base64 data URI (`data:image/png;base64,...`)   |
-| `mask`  | `string` | No       | Mask image as base64 data URI (white = area to edit)           |
-| `size`  | `string` | No       | Output dimensions, e.g. `"1024x1024"` (default)               |
+| Field    | Type     | Required | Description                                                    |
+| -------- | -------- | -------- | -------------------------------------------------------------- |
+| `model`  | `string` | No       | Model ID (default: `openai/gpt-image-1`)                       |
+| `prompt` | `string` | Yes      | Text description of the edit to apply                          |
+| `image`  | `string` | Yes      | Source image — see **Image input formats** below               |
+| `mask`   | `string` | No       | Mask image (white = area to edit) — same formats as `image`    |
+| `size`   | `string` | No       | Output dimensions, e.g. `"1024x1024"` (default)               |
+
+**Image input formats** — the `image` and `mask` fields accept any of:
+
+| Format              | Example                              | Description                                    |
+| ------------------- | ------------------------------------ | ---------------------------------------------- |
+| Local file path     | `"/Users/me/photo.png"`              | Absolute path — ClawRouter reads the file      |
+| Home-relative path  | `"~/photo.png"`                      | Expands `~` to home directory                  |
+| HTTP/HTTPS URL      | `"https://example.com/photo.png"`    | ClawRouter downloads the image automatically   |
+| Base64 data URI     | `"data:image/png;base64,iVBOR..."`   | Passed through directly (no conversion needed) |
+
+Supported image formats: **PNG**, **JPG/JPEG**, **WebP**.
 
 **Response:**
 
@@ -240,42 +251,52 @@ await proxy.close();
 ### curl
 
 ```bash
-# Edit an image (gpt-image-1, $0.02)
+# Using a local file path (simplest)
 curl -X POST http://localhost:8402/v1/images/image2image \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "openai/gpt-image-1",
     "prompt": "add sunglasses to the person",
-    "image": "data:image/png;base64,iVBOR...",
-    "size": "1024x1024"
+    "image": "~/photo.png"
+  }'
+
+# Using an image URL
+curl -X POST http://localhost:8402/v1/images/image2image \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "change the background to a sunset beach",
+    "image": "https://example.com/photo.png"
   }'
 
 # With a mask (inpainting — white = area to edit)
 curl -X POST http://localhost:8402/v1/images/image2image \
   -H "Content-Type: application/json" \
   -d '{
+    "prompt": "replace the background with a starry sky",
+    "image": "~/photo.png",
+    "mask": "~/mask.png"
+  }'
+
+# With explicit model, size, and base64 data URI
+curl -X POST http://localhost:8402/v1/images/image2image \
+  -H "Content-Type: application/json" \
+  -d '{
     "model": "openai/gpt-image-1",
-    "prompt": "replace the background with a sunset beach",
+    "prompt": "add a crown",
     "image": "data:image/png;base64,iVBOR...",
-    "mask": "data:image/png;base64,iVBOR..."
+    "size": "1536x1024"
   }'
 ```
 
 ### TypeScript / Node.js
 
 ```typescript
-import { readFileSync } from "fs";
-
-const imageBase64 = readFileSync("./photo.png").toString("base64");
-
+// ClawRouter reads the file for you — no base64 encoding needed
 const response = await fetch("http://localhost:8402/v1/images/image2image", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    model: "openai/gpt-image-1",
     prompt: "change the background to a starry sky",
-    image: `data:image/png;base64,${imageBase64}`,
-    size: "1024x1024",
+    image: "/Users/me/photo.png", // or "~/photo.png" or an HTTPS URL
   }),
 });
 
@@ -290,19 +311,13 @@ console.log(result.data[0].url); // http://localhost:8402/images/xxx.png
 ### Python
 
 ```python
-import base64
 import requests
-
-with open("photo.png", "rb") as f:
-    image_b64 = base64.b64encode(f.read()).decode()
 
 response = requests.post(
     "http://localhost:8402/v1/images/image2image",
     json={
-        "model": "openai/gpt-image-1",
         "prompt": "add a hat to the person",
-        "image": f"data:image/png;base64,{image_b64}",
-        "size": "1024x1024",
+        "image": "~/photo.png",  # or an absolute path or HTTPS URL
     },
 )
 
@@ -362,4 +377,4 @@ When using ClawRouter with OpenClaw, generate and edit images directly from any 
 - **Payment** — Each image costs the listed price in USDC, deducted from your wallet via x402. Make sure your wallet is funded before generating or editing.
 - **No DALL-E content policy bypass** — DALL-E 3 and GPT Image 1 still apply OpenAI's content policy. Use `flux` or `nano-banana` for more flexibility with generation.
 - **Size limits** — Requesting a size larger than the model's max will return an error. Check the table above before setting `--size`.
-- **Image editing** — The `/v1/images/image2image` endpoint currently supports `openai/gpt-image-1`. The source image must be sent as a base64 data URI in the `image` field. The `/img2img` chat command handles file reading and base64 conversion automatically.
+- **Image editing** — The `/v1/images/image2image` endpoint currently supports `openai/gpt-image-1` (default). The `image` and `mask` fields accept local file paths (`~/photo.png`, `/abs/path.png`), HTTP/HTTPS URLs, or base64 data URIs. ClawRouter handles file reading and URL downloading automatically. Supported formats: PNG, JPG/JPEG, WebP.
