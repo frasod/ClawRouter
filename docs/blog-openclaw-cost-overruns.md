@@ -108,6 +108,8 @@ ClawRouter inspects every HTTP 200 response body before forwarding it ([#49902](
 
 ### 5. Correct Error Classification — No Retry Storms
 
+![Stopping retry storms at the HTTP layer — ClawRouter classifies errors per provider with logic gate classifier and automated mechanical actions](assets/blockrun-clawrouter-openclaw-error-classification-retry-storm-prevention.png)
+
 ClawRouter classifies errors at the HTTP/body layer before OpenClaw sees them:
 
 ```
