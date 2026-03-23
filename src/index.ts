@@ -536,9 +536,8 @@ async function startProxyInBackground(api: OpenClawPluginApi): Promise<void> {
       // On Solana, if USDC is low/empty, check for SOL and suggest swap
       if (currentChain === "solana" && (balance.isEmpty || balance.isLow)) {
         try {
-          const { SolanaBalanceMonitor } = await import("./solana-balance.js");
-          const monitor = proxy.balanceMonitor as InstanceType<typeof SolanaBalanceMonitor>;
-          const solLamports = await monitor.checkSolBalance();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const solLamports: bigint = await (proxy.balanceMonitor as any).checkSolBalance();
           // Only suggest if they have meaningful SOL (> 0.01 SOL = 10M lamports)
           if (solLamports > 10_000_000n) {
             const sol = Number(solLamports) / 1_000_000_000;

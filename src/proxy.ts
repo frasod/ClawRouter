@@ -1882,7 +1882,9 @@ export async function startProxy(options: ProxyOptions): Promise<ProxyHandle> {
 
         // Resolve image/mask fields: file paths and URLs → data URIs
         let reqBody: string;
+        // eslint-disable-next-line no-useless-assignment -- reassigned in try, used after catch
         let img2imgModel = "openai/gpt-image-1";
+        // eslint-disable-next-line no-useless-assignment -- reassigned in try, used after catch
         let img2imgCost = 0;
         try {
           const parsed = JSON.parse(rawBody.toString());
